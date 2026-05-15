@@ -1,0 +1,537 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Sentinel · Proactive AML for Crypto Exchanges</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script>
+  tailwind.config = {
+    theme: {
+      extend: {
+        fontFamily: {
+          sans: ['Inter', 'ui-sans-serif', 'system-ui'],
+          mono: ['"JetBrains Mono"', 'ui-monospace', 'SFMono-Regular'],
+        },
+        colors: {
+          ink:   '#06070a',
+          panel: '#0c0d12',
+          line:  'rgba(255,255,255,0.07)',
+        },
+        boxShadow: {
+          glow: '0 0 0 1px rgba(255,255,255,0.06), 0 30px 80px -20px rgba(16,185,129,0.18)',
+        }
+      }
+    }
+  }
+</script>
+<style>
+  html, body { background: #06070a; color: #e6e8ec; }
+  body {
+    background-image:
+      radial-gradient(900px 500px at 80% -10%, rgba(16,185,129,0.10), transparent 60%),
+      radial-gradient(700px 400px at -10% 30%, rgba(59,130,246,0.08), transparent 60%),
+      radial-gradient(600px 400px at 50% 110%, rgba(244,63,94,0.06), transparent 60%);
+    background-attachment: fixed;
+  }
+  .grid-bg {
+    background-image:
+      linear-gradient(rgba(255,255,255,0.04) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,255,255,0.04) 1px, transparent 1px);
+    background-size: 44px 44px;
+    mask-image: radial-gradient(ellipse 70% 60% at 50% 0%, #000 40%, transparent 80%);
+  }
+  .card {
+    background: linear-gradient(180deg, rgba(255,255,255,0.025), rgba(255,255,255,0.01));
+    border: 1px solid rgba(255,255,255,0.07);
+    border-radius: 14px;
+  }
+  .ring-soft { box-shadow: inset 0 1px 0 rgba(255,255,255,0.04), 0 1px 0 rgba(0,0,0,0.4); }
+  .pulse-dot {
+    width: 8px; height: 8px; border-radius: 9999px; background: #f43f5e;
+    box-shadow: 0 0 0 0 rgba(244,63,94,0.6);
+    animation: pulse 1.8s infinite;
+  }
+  @keyframes pulse {
+    0%   { box-shadow: 0 0 0 0 rgba(244,63,94,0.55); }
+    70%  { box-shadow: 0 0 0 10px rgba(244,63,94,0); }
+    100% { box-shadow: 0 0 0 0 rgba(244,63,94,0); }
+  }
+  /* SQL syntax */
+  .sql       { color: #d4d8e0; }
+  .kw        { color: #c084fc; font-weight: 600; }   /* keywords */
+  .fn        { color: #60a5fa; }                     /* functions */
+  .str       { color: #34d399; }                     /* strings */
+  .num       { color: #fbbf24; }                     /* numbers */
+  .cmt       { color: #6b7280; font-style: italic; } /* comments */
+  .col       { color: #e2e8f0; }                     /* columns */
+  .typ       { color: #f472b6; }                     /* types / intervals */
+  .op        { color: #94a3b8; }                     /* operators */
+  /* Connector arrow */
+  .arrow {
+    flex: 1 1 auto;
+    height: 2px;
+    background: linear-gradient(90deg, rgba(16,185,129,0.0), rgba(16,185,129,0.55), rgba(59,130,246,0.55), rgba(59,130,246,0.0));
+    position: relative;
+    margin: 0 -1px;
+    min-width: 28px;
+  }
+  .arrow::after {
+    content: ''; position: absolute; right: -1px; top: 50%;
+    width: 9px; height: 9px; border-right: 2px solid #60a5fa; border-top: 2px solid #60a5fa;
+    transform: translateY(-50%) rotate(45deg);
+  }
+  .arrow-v {
+    width: 2px; height: 36px; margin: 0 auto;
+    background: linear-gradient(180deg, rgba(16,185,129,0.0), rgba(16,185,129,0.6), rgba(59,130,246,0.6), rgba(59,130,246,0.0));
+    position: relative;
+  }
+  .arrow-v::after {
+    content: ''; position: absolute; bottom: -1px; left: 50%;
+    width: 9px; height: 9px; border-right: 2px solid #60a5fa; border-bottom: 2px solid #60a5fa;
+    transform: translateX(-50%) rotate(45deg);
+  }
+  .step-card { transition: transform .2s ease, border-color .2s ease; }
+  .step-card:hover { transform: translateY(-2px); border-color: rgba(255,255,255,0.16); }
+  /* Slack-ish */
+  .slack-bg     { background: #1a1d21; }
+  .slack-side   { background: #19171d; }
+  .slack-hover  { background: #222529; }
+  .slack-text   { color: #d1d2d3; }
+  .slack-muted  { color: #9aa0a6; }
+  .slack-divider{ border-color: #2c2d30; }
+  .slack-code   { background: #232529; border: 1px solid #2c2d30; color: #e8e8e8; }
+  .slack-btn    { background: #1d1f23; border: 1px solid #383a3f; color: #e8e8e8; }
+  .slack-btn:hover { background: #26282d; }
+  .pill-app    { background: #2c2d30; color: #b9bbbe; font-size: 9px; letter-spacing: .04em; padding: 1px 4px; border-radius: 3px; }
+  .pill-danger { background: rgba(244,63,94,0.12); color: #fb7185; border: 1px solid rgba(244,63,94,0.25); }
+  .pill-ok     { background: rgba(16,185,129,0.12); color: #34d399; border: 1px solid rgba(16,185,129,0.25); }
+  .pill-warn   { background: rgba(251,191,36,0.10); color: #fcd34d; border: 1px solid rgba(251,191,36,0.25); }
+  .scrollbar::-webkit-scrollbar { height: 6px; width: 6px; }
+  .scrollbar::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.08); border-radius: 8px; }
+</style>
+</head>
+<body class="font-sans antialiased">
+
+<!-- ── NAV ─────────────────────────────────────────────────────── -->
+<nav class="sticky top-0 z-40 backdrop-blur-md bg-ink/70 border-b border-line">
+  <div class="max-w-6xl mx-auto px-6 h-14 flex items-center justify-between">
+    <div class="flex items-center gap-2">
+      <div class="w-7 h-7 rounded-md bg-gradient-to-br from-emerald-400 to-blue-500 grid place-items-center text-ink font-bold text-sm">S</div>
+      <span class="font-semibold tracking-tight">Sentinel</span>
+      <span class="ml-2 text-xs text-slate-500 font-mono">v0.4 · internal</span>
+    </div>
+    <div class="hidden md:flex items-center gap-7 text-sm text-slate-400">
+      <a href="#engine" class="hover:text-white transition">SQL Engine</a>
+      <a href="#workflow" class="hover:text-white transition">Workflow</a>
+      <a href="#alert" class="hover:text-white transition">Alert</a>
+    </div>
+    <a href="#alert" class="hidden md:inline-flex items-center gap-2 rounded-lg bg-white text-ink text-sm font-semibold px-3.5 py-1.5 hover:bg-slate-200 transition">
+      View live alert
+      <span aria-hidden="true">→</span>
+    </a>
+  </div>
+</nav>
+
+<!-- ── HERO ────────────────────────────────────────────────────── -->
+<header class="relative overflow-hidden">
+  <div class="absolute inset-0 grid-bg pointer-events-none"></div>
+  <div class="relative max-w-6xl mx-auto px-6 pt-20 pb-24 text-center">
+    <div class="inline-flex items-center gap-2 rounded-full border border-line bg-white/5 px-3 py-1 text-xs text-slate-300">
+      <span class="pulse-dot"></span>
+      <span class="font-mono tracking-wide">PASS-THROUGH LAYERING · DETECTION ACTIVE</span>
+    </div>
+    <h1 class="mt-6 text-4xl md:text-6xl font-extrabold tracking-tight leading-[1.05]">
+      Catch the dump before<br/>
+      <span class="bg-gradient-to-r from-emerald-300 via-sky-300 to-violet-300 bg-clip-text text-transparent">the fiat leaves the building.</span>
+    </h1>
+    <p class="mt-6 max-w-2xl mx-auto text-slate-400 text-base md:text-lg leading-relaxed">
+      Sentinel is a proactive AML tripwire built for crypto exchanges. It pairs deposits and withdrawals
+      in real time, flags accounts dumping volatile alts to fiat in under two hours, and auto-applies a
+      72-hour fiat withdrawal cooldown before the funds settle.
+    </p>
+    <div class="mt-8 flex items-center justify-center gap-3 text-xs font-mono text-slate-500">
+      <span class="px-2.5 py-1 rounded-md border border-line">SQL · CTE Engine</span>
+      <span class="px-2.5 py-1 rounded-md border border-line">Airflow Cron</span>
+      <span class="px-2.5 py-1 rounded-md border border-line">Risk API</span>
+      <span class="px-2.5 py-1 rounded-md border border-line">Slack &amp; Jira</span>
+    </div>
+  </div>
+</header>
+
+<!-- ── 1. SQL ENGINE ───────────────────────────────────────────── -->
+<section id="engine" class="max-w-6xl mx-auto px-6 pb-20">
+  <div class="flex items-end justify-between mb-6">
+    <div>
+      <div class="text-xs font-mono text-emerald-300/80 tracking-widest mb-2">01 / DETECTION ENGINE</div>
+      <h2 class="text-2xl md:text-3xl font-bold tracking-tight">The SQL tripwire</h2>
+      <p class="text-slate-400 mt-2 max-w-xl text-sm">A single CTE-driven query, scheduled every 5 minutes, that pairs same-user alt deposits to fiat withdrawals and surfaces the layering pattern.</p>
+    </div>
+    <div class="hidden md:flex items-center gap-2 text-xs font-mono text-slate-500">
+      <span class="w-2 h-2 rounded-full bg-emerald-400"></span>
+      <span>last run: 38s ago</span>
+    </div>
+  </div>
+
+  <div class="card shadow-glow overflow-hidden">
+    <!-- editor header -->
+    <div class="flex items-center justify-between px-4 py-2.5 border-b border-line bg-white/[0.02]">
+      <div class="flex items-center gap-2">
+        <span class="w-3 h-3 rounded-full bg-rose-500/80"></span>
+        <span class="w-3 h-3 rounded-full bg-amber-400/80"></span>
+        <span class="w-3 h-3 rounded-full bg-emerald-400/80"></span>
+        <span class="ml-3 text-xs font-mono text-slate-400">aml/detect_pass_through_layering.sql</span>
+      </div>
+      <div class="flex items-center gap-3 text-[11px] font-mono text-slate-500">
+        <span class="px-2 py-0.5 rounded border border-line">PostgreSQL 15</span>
+        <span class="px-2 py-0.5 rounded border border-line">Airflow · every 5m</span>
+      </div>
+    </div>
+
+    <!-- code body -->
+    <div class="overflow-x-auto scrollbar">
+      <pre class="font-mono text-[13px] leading-[1.7] p-6 sql min-w-[720px]"><span class="cmt">-- ─────────────────────────────────────────────────────────────────────────────
+-- Pass-Through Layering Detection
+-- Pairs ADA / XRP deposits with fiat withdrawals from the SAME account.
+-- Flag fires when funds hit fiat &lt; 2h after deposit AND &gt; 95% of deposit value.
+-- Owner: Risk &amp; Compliance Engineering
+-- Cadence: every 5 minutes (Airflow DAG: aml_tripwires)
+-- ─────────────────────────────────────────────────────────────────────────────</span>
+
+<span class="kw">WITH</span> <span class="col">alt_deposits</span> <span class="kw">AS</span> (
+  <span class="cmt">-- Step 1. Confirmed inbound transfers of volatile alts in the last 24h.</span>
+  <span class="kw">SELECT</span>
+    <span class="col">user_id</span>,
+    <span class="col">txn_id</span>      <span class="kw">AS</span> <span class="col">deposit_txn</span>,
+    <span class="col">asset</span>       <span class="kw">AS</span> <span class="col">deposit_asset</span>,
+    <span class="col">amount_usd</span>  <span class="kw">AS</span> <span class="col">deposit_value</span>,
+    <span class="col">created_at</span>  <span class="kw">AS</span> <span class="col">deposit_ts</span>
+  <span class="kw">FROM</span> <span class="col">ledger.deposits</span>
+  <span class="kw">WHERE</span> <span class="col">asset</span> <span class="kw">IN</span> (<span class="str">'ADA'</span>, <span class="str">'XRP'</span>)
+    <span class="kw">AND</span> <span class="col">status</span> <span class="op">=</span> <span class="str">'confirmed'</span>
+    <span class="kw">AND</span> <span class="col">created_at</span> <span class="op">&gt;=</span> <span class="fn">NOW</span>() <span class="op">-</span> <span class="typ">INTERVAL</span> <span class="str">'24 hours'</span>
+),
+
+<span class="col">fiat_withdrawals</span> <span class="kw">AS</span> (
+  <span class="cmt">-- Step 2. Pending or processing fiat off-ramps in the same window.</span>
+  <span class="kw">SELECT</span>
+    <span class="col">user_id</span>,
+    <span class="col">txn_id</span>      <span class="kw">AS</span> <span class="col">withdrawal_txn</span>,
+    <span class="col">asset</span>       <span class="kw">AS</span> <span class="col">fiat_asset</span>,
+    <span class="col">amount_usd</span>  <span class="kw">AS</span> <span class="col">withdrawal_value</span>,
+    <span class="col">created_at</span>  <span class="kw">AS</span> <span class="col">withdrawal_ts</span>
+  <span class="kw">FROM</span> <span class="col">ledger.withdrawals</span>
+  <span class="kw">WHERE</span> <span class="col">asset</span> <span class="kw">IN</span> (<span class="str">'MYR'</span>, <span class="str">'IDR'</span>, <span class="str">'ZAR'</span>, <span class="str">'EUR'</span>, <span class="str">'GBP'</span>)
+    <span class="kw">AND</span> <span class="col">status</span> <span class="kw">IN</span> (<span class="str">'pending'</span>, <span class="str">'processing'</span>)
+    <span class="kw">AND</span> <span class="col">created_at</span> <span class="op">&gt;=</span> <span class="fn">NOW</span>() <span class="op">-</span> <span class="typ">INTERVAL</span> <span class="str">'24 hours'</span>
+),
+
+<span class="col">paired_flows</span> <span class="kw">AS</span> (
+  <span class="cmt">-- Step 3. Self-join: pair each deposit with any later fiat exit by the same user.</span>
+  <span class="kw">SELECT</span>
+    <span class="col">d.user_id</span>,
+    <span class="col">d.deposit_asset</span>,
+    <span class="col">f.fiat_asset</span>,
+    <span class="col">d.deposit_value</span>,
+    <span class="col">f.withdrawal_value</span>,
+    <span class="fn">EXTRACT</span>(<span class="kw">EPOCH</span> <span class="kw">FROM</span> (<span class="col">f.withdrawal_ts</span> <span class="op">-</span> <span class="col">d.deposit_ts</span>)) <span class="op">/</span> <span class="num">60.0</span>
+                                                            <span class="kw">AS</span> <span class="col">minutes_elapsed</span>,
+    <span class="fn">ROUND</span>(<span class="col">f.withdrawal_value</span> <span class="op">/</span> <span class="fn">NULLIF</span>(<span class="col">d.deposit_value</span>, <span class="num">0</span>), <span class="num">4</span>)
+                                                            <span class="kw">AS</span> <span class="col">withdrawal_ratio</span>
+  <span class="kw">FROM</span> <span class="col">alt_deposits</span> d
+  <span class="kw">JOIN</span> <span class="col">fiat_withdrawals</span> f
+    <span class="kw">ON</span>  <span class="col">d.user_id</span> <span class="op">=</span> <span class="col">f.user_id</span>
+    <span class="kw">AND</span> <span class="col">f.withdrawal_ts</span> <span class="op">&gt;</span> <span class="col">d.deposit_ts</span>
+)
+
+<span class="cmt">-- Step 4. Tripwire: instant conversion AND near-total drain → flag.</span>
+<span class="kw">SELECT</span>
+  <span class="col">user_id</span>,
+  <span class="col">deposit_asset</span>,
+  <span class="col">fiat_asset</span>,
+  <span class="col">deposit_value</span>,
+  <span class="col">withdrawal_value</span>,
+  <span class="col">minutes_elapsed</span>,
+  <span class="col">withdrawal_ratio</span>,
+  <span class="str">'PASS_THROUGH_LAYERING'</span> <span class="kw">AS</span> <span class="col">risk_flag</span>
+<span class="kw">FROM</span> <span class="col">paired_flows</span>
+<span class="kw">WHERE</span> <span class="col">minutes_elapsed</span> <span class="op">&lt;</span> <span class="num">120</span>      <span class="cmt">-- under 2h</span>
+  <span class="kw">AND</span> <span class="col">withdrawal_ratio</span> <span class="op">&gt;</span> <span class="num">0.95</span>   <span class="cmt">-- &gt;95% of deposit value cashed out</span>
+<span class="kw">ORDER BY</span> <span class="col">minutes_elapsed</span> <span class="kw">ASC</span>;</pre>
+    </div>
+  </div>
+</section>
+
+<!-- ── 2. WORKFLOW ─────────────────────────────────────────────── -->
+<section id="workflow" class="max-w-6xl mx-auto px-6 pb-20">
+  <div class="mb-8">
+    <div class="text-xs font-mono text-sky-300/80 tracking-widest mb-2">02 / AUTOMATION WORKFLOW</div>
+    <h2 class="text-2xl md:text-3xl font-bold tracking-tight">From signal to mitigation, in under 90 seconds</h2>
+    <p class="text-slate-400 mt-2 max-w-2xl text-sm">No human in the loop on the cooldown. Analysts review after the fact, on a queue Sentinel populates with full context.</p>
+  </div>
+
+  <!-- desktop: horizontal flow -->
+  <div class="hidden lg:flex items-stretch gap-3">
+    <!-- Step 1 -->
+    <div class="card step-card flex-1 p-5 ring-soft">
+      <div class="flex items-center gap-2 mb-3">
+        <span class="text-[10px] font-mono text-slate-500">STEP 01</span>
+        <span class="ml-auto inline-flex items-center gap-1 text-[10px] font-mono text-emerald-300/90">
+          <span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>LIVE
+        </span>
+      </div>
+      <div class="w-9 h-9 rounded-lg bg-emerald-500/10 border border-emerald-400/20 grid place-items-center text-emerald-300 text-lg mb-3">◉</div>
+      <div class="text-base font-semibold">DB Monitor</div>
+      <div class="text-xs text-slate-400 mt-1.5 leading-relaxed">Airflow polls the ledger every 5 minutes. Streams new deposit and withdrawal rows into the detection job.</div>
+      <div class="mt-3 text-[10px] font-mono text-slate-500">postgres · ledger.*</div>
+    </div>
+    <div class="arrow self-center"></div>
+
+    <!-- Step 2 -->
+    <div class="card step-card flex-1 p-5 ring-soft">
+      <div class="flex items-center gap-2 mb-3">
+        <span class="text-[10px] font-mono text-slate-500">STEP 02</span>
+        <span class="ml-auto pill-warn px-1.5 py-0.5 rounded text-[10px] font-mono">TRIGGERED</span>
+      </div>
+      <div class="w-9 h-9 rounded-lg bg-amber-500/10 border border-amber-400/20 grid place-items-center text-amber-300 text-lg mb-3">⚡</div>
+      <div class="text-base font-semibold">SQL Tripwire</div>
+      <div class="text-xs text-slate-400 mt-1.5 leading-relaxed">CTE query returns matching rows. Each match emits a structured event with user_id, ratio, and time delta.</div>
+      <div class="mt-3 text-[10px] font-mono text-slate-500">risk_flag = PASS_THROUGH_LAYERING</div>
+    </div>
+    <div class="arrow self-center"></div>
+
+    <!-- Step 3 -->
+    <div class="card step-card flex-1 p-5 ring-soft">
+      <div class="flex items-center gap-2 mb-3">
+        <span class="text-[10px] font-mono text-slate-500">STEP 03</span>
+        <span class="ml-auto pill-danger px-1.5 py-0.5 rounded text-[10px] font-mono">ENFORCED</span>
+      </div>
+      <div class="w-9 h-9 rounded-lg bg-rose-500/10 border border-rose-400/20 grid place-items-center text-rose-300 text-lg mb-3">🛡</div>
+      <div class="text-base font-semibold">API: 72H Cooldown</div>
+      <div class="text-xs text-slate-400 mt-1.5 leading-relaxed">POST to internal Risk API places a fiat-withdrawal hold on the account. Reversible by L2 compliance only.</div>
+      <div class="mt-3 text-[10px] font-mono text-slate-500">POST /risk/v2/cooldown</div>
+    </div>
+    <div class="arrow self-center"></div>
+
+    <!-- Step 4 -->
+    <div class="card step-card flex-1 p-5 ring-soft">
+      <div class="flex items-center gap-2 mb-3">
+        <span class="text-[10px] font-mono text-slate-500">STEP 04</span>
+        <span class="ml-auto pill-ok px-1.5 py-0.5 rounded text-[10px] font-mono">DELIVERED</span>
+      </div>
+      <div class="w-9 h-9 rounded-lg bg-sky-500/10 border border-sky-400/20 grid place-items-center text-sky-300 text-lg mb-3">↗</div>
+      <div class="text-base font-semibold">Webhook · Slack &amp; Jira</div>
+      <div class="text-xs text-slate-400 mt-1.5 leading-relaxed">Pushes to #aml-alerts in Slack and opens a Jira ticket on the AML board with full evidence payload attached.</div>
+      <div class="mt-3 text-[10px] font-mono text-slate-500">slack.webhook · jira.create</div>
+    </div>
+  </div>
+
+  <!-- mobile: vertical flow -->
+  <div class="lg:hidden space-y-0">
+    <div class="card p-5 ring-soft">
+      <div class="text-[10px] font-mono text-slate-500 mb-2">STEP 01 · DB MONITOR</div>
+      <div class="font-semibold">Airflow polls ledger every 5 minutes</div>
+      <div class="text-xs text-slate-400 mt-1">Streams new deposit and withdrawal rows into the detection job.</div>
+    </div>
+    <div class="arrow-v"></div>
+    <div class="card p-5 ring-soft">
+      <div class="text-[10px] font-mono text-slate-500 mb-2">STEP 02 · SQL TRIPWIRE</div>
+      <div class="font-semibold">CTE query emits structured events</div>
+      <div class="text-xs text-slate-400 mt-1">risk_flag = PASS_THROUGH_LAYERING</div>
+    </div>
+    <div class="arrow-v"></div>
+    <div class="card p-5 ring-soft">
+      <div class="text-[10px] font-mono text-slate-500 mb-2">STEP 03 · API CALL</div>
+      <div class="font-semibold">72-hour fiat withdrawal cooldown</div>
+      <div class="text-xs text-slate-400 mt-1">POST /risk/v2/cooldown · reversible by L2 compliance only.</div>
+    </div>
+    <div class="arrow-v"></div>
+    <div class="card p-5 ring-soft">
+      <div class="text-[10px] font-mono text-slate-500 mb-2">STEP 04 · WEBHOOK</div>
+      <div class="font-semibold">Slack alert and Jira ticket</div>
+      <div class="text-xs text-slate-400 mt-1">Posts to #aml-alerts and opens a ticket with full evidence payload.</div>
+    </div>
+  </div>
+</section>
+
+<!-- ── 3. SLACK ALERT ──────────────────────────────────────────── -->
+<section id="alert" class="max-w-6xl mx-auto px-6 pb-28">
+  <div class="mb-8">
+    <div class="text-xs font-mono text-rose-300/80 tracking-widest mb-2">03 / OPERATOR EXPERIENCE</div>
+    <h2 class="text-2xl md:text-3xl font-bold tracking-tight">What the analyst sees</h2>
+    <p class="text-slate-400 mt-2 max-w-2xl text-sm">The cooldown has already shipped. The Slack message is documentation plus a one-click escalation path.</p>
+  </div>
+
+  <div class="rounded-xl overflow-hidden border border-line shadow-glow">
+    <!-- slack-style window -->
+    <div class="grid grid-cols-12 slack-bg slack-text">
+
+      <!-- Sidebar -->
+      <aside class="hidden md:flex md:col-span-3 lg:col-span-3 flex-col slack-side py-3 text-sm">
+        <div class="px-4 pb-3 border-b slack-divider">
+          <div class="font-bold text-white text-base">Exchange HQ</div>
+          <div class="flex items-center gap-1.5 mt-1 slack-muted text-xs">
+            <span class="w-2 h-2 rounded-full bg-emerald-400"></span> active
+          </div>
+        </div>
+        <div class="px-2 pt-3 space-y-0.5">
+          <div class="px-2 py-1 rounded slack-muted text-xs uppercase tracking-wider">Channels</div>
+          <div class="px-3 py-1 rounded slack-muted hover:slack-hover">#general</div>
+          <div class="px-3 py-1 rounded slack-muted hover:slack-hover">#engineering</div>
+          <div class="px-3 py-1 rounded slack-muted hover:slack-hover">#compliance</div>
+          <div class="px-3 py-1 rounded bg-emerald-600/15 text-white border-l-2 border-emerald-400 -ml-0.5 flex items-center justify-between">
+            <span># aml-alerts</span>
+            <span class="bg-rose-500 text-white text-[10px] font-bold rounded-full px-1.5">3</span>
+          </div>
+          <div class="px-3 py-1 rounded slack-muted hover:slack-hover">#risk-ops</div>
+          <div class="px-3 py-1 rounded slack-muted hover:slack-hover">#oncall</div>
+          <div class="px-2 py-1 mt-3 rounded slack-muted text-xs uppercase tracking-wider">Apps</div>
+          <div class="px-3 py-1 rounded slack-muted hover:slack-hover">AML-Bot</div>
+          <div class="px-3 py-1 rounded slack-muted hover:slack-hover">Sentinel</div>
+        </div>
+      </aside>
+
+      <!-- Main -->
+      <main class="col-span-12 md:col-span-9 lg:col-span-9 flex flex-col">
+        <!-- channel header -->
+        <div class="flex items-center justify-between px-5 py-3 border-b slack-divider">
+          <div>
+            <div class="font-bold text-white">
+              <span class="slack-muted font-normal">#</span> aml-alerts
+            </div>
+            <div class="text-xs slack-muted mt-0.5">Auto-generated alerts from the AML detection layer · Do not mute</div>
+          </div>
+          <div class="hidden sm:flex items-center gap-3 text-xs slack-muted">
+            <span>👥 14</span>
+            <span>📌 6</span>
+          </div>
+        </div>
+
+        <!-- date divider -->
+        <div class="flex items-center gap-3 px-5 py-3">
+          <div class="flex-1 border-t slack-divider"></div>
+          <div class="text-[11px] slack-muted px-3 py-0.5 border slack-divider rounded-full font-semibold">Today</div>
+          <div class="flex-1 border-t slack-divider"></div>
+        </div>
+
+        <!-- alert message -->
+        <div class="px-5 pb-6 group">
+          <div class="flex gap-3">
+            <!-- bot avatar -->
+            <div class="w-10 h-10 rounded-md bg-gradient-to-br from-rose-500 to-amber-400 grid place-items-center text-ink font-extrabold text-sm shrink-0">A</div>
+            <div class="flex-1 min-w-0">
+              <!-- author line -->
+              <div class="flex items-center gap-2 mb-1">
+                <span class="font-bold text-white">AML-Bot</span>
+                <span class="pill-app">APP</span>
+                <span class="text-xs slack-muted">14:32</span>
+              </div>
+
+              <!-- attachment card -->
+              <div class="border-l-4 border-rose-500 slack-bg rounded-r-md mt-1 max-w-2xl">
+                <div class="pl-4 py-3 pr-4">
+                  <!-- header pill row -->
+                  <div class="flex flex-wrap items-center gap-2 mb-2">
+                    <span class="pill-danger px-2 py-0.5 rounded text-[11px] font-bold tracking-wide">🚨 HIGH SEVERITY</span>
+                    <span class="text-[11px] slack-muted font-mono">PASS_THROUGH_LAYERING</span>
+                  </div>
+                  <div class="font-bold text-white text-[15px]">
+                    Pass-Through Layering detected on <span class="slack-code px-1.5 py-0.5 rounded text-[12px] font-mono">LN-88421</span>
+                  </div>
+                  <div class="slack-muted text-[13px] mt-1 leading-relaxed">
+                    Account deposited <span class="text-white font-semibold">ADA</span>, dumped to <span class="text-white font-semibold">MYR</span>, and queued a fiat withdrawal in under 15 minutes. Withdrawal value is 98.7% of the deposit. Pattern matches the layering tripwire.
+                  </div>
+
+                  <!-- fields grid -->
+                  <div class="grid grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-3 mt-4 text-[13px]">
+                    <div>
+                      <div class="text-[11px] slack-muted font-bold uppercase tracking-wide mb-0.5">User ID</div>
+                      <div class="font-mono text-white">LN-88421</div>
+                    </div>
+                    <div>
+                      <div class="text-[11px] slack-muted font-bold uppercase tracking-wide mb-0.5">Pattern</div>
+                      <div class="font-mono text-white">ADA → MYR</div>
+                    </div>
+                    <div>
+                      <div class="text-[11px] slack-muted font-bold uppercase tracking-wide mb-0.5">Time Delta</div>
+                      <div class="font-mono text-rose-300">14 minutes</div>
+                    </div>
+                    <div>
+                      <div class="text-[11px] slack-muted font-bold uppercase tracking-wide mb-0.5">Deposit Value</div>
+                      <div class="font-mono text-white">$24,830.00</div>
+                    </div>
+                    <div>
+                      <div class="text-[11px] slack-muted font-bold uppercase tracking-wide mb-0.5">Withdrawal Value</div>
+                      <div class="font-mono text-white">$24,506.21</div>
+                    </div>
+                    <div>
+                      <div class="text-[11px] slack-muted font-bold uppercase tracking-wide mb-0.5">Withdrawal Ratio</div>
+                      <div class="font-mono text-rose-300">98.7%</div>
+                    </div>
+                  </div>
+
+                  <!-- code block: payload -->
+                  <div class="slack-code rounded-md mt-4 p-3 font-mono text-[12px] leading-relaxed overflow-x-auto scrollbar">
+<span class="text-slate-500">// risk_event payload</span>
+{
+  <span class="text-emerald-300">"event"</span>: <span class="text-amber-300">"PASS_THROUGH_LAYERING"</span>,
+  <span class="text-emerald-300">"user_id"</span>: <span class="text-amber-300">"LN-88421"</span>,
+  <span class="text-emerald-300">"deposit_txn"</span>: <span class="text-amber-300">"dep_8f23c1a9"</span>,
+  <span class="text-emerald-300">"withdrawal_txn"</span>: <span class="text-amber-300">"wd_a40e72b6"</span>,
+  <span class="text-emerald-300">"minutes_elapsed"</span>: <span class="text-sky-300">14</span>,
+  <span class="text-emerald-300">"withdrawal_ratio"</span>: <span class="text-sky-300">0.987</span>
+}</div>
+
+                  <!-- mitigation banner -->
+                  <div class="mt-4 flex items-start gap-2.5 rounded-md border border-emerald-400/25 bg-emerald-400/10 p-3">
+                    <span class="text-emerald-300 text-base leading-none mt-0.5">✓</span>
+                    <div class="text-[13px]">
+                      <div class="text-emerald-200 font-semibold">Auto-mitigation applied</div>
+                      <div class="slack-muted">A 72-hour fiat withdrawal cooldown is now active on <span class="text-white font-mono">LN-88421</span>. Withdrawal <span class="text-white font-mono">wd_a40e72b6</span> has been moved to status <span class="text-white font-mono">on_hold</span>.</div>
+                    </div>
+                  </div>
+
+                  <!-- buttons -->
+                  <div class="mt-4 flex flex-wrap gap-2">
+                    <button class="slack-btn px-3 py-1.5 rounded text-[12px] font-semibold">View account</button>
+                    <button class="slack-btn px-3 py-1.5 rounded text-[12px] font-semibold">Open Jira ticket</button>
+                    <button class="slack-btn px-3 py-1.5 rounded text-[12px] font-semibold">Escalate to L2</button>
+                    <button class="slack-btn px-3 py-1.5 rounded text-[12px] font-semibold text-slate-400">Mark false positive</button>
+                  </div>
+                </div>
+              </div>
+
+              <!-- thread meta -->
+              <div class="mt-2 flex items-center gap-3 text-[12px] slack-muted">
+                <span class="hover:text-white cursor-pointer">🧵 2 replies</span>
+                <span>·</span>
+                <span>last reply 38s ago from <span class="text-white">@anna.l</span></span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- composer -->
+        <div class="mt-auto px-5 pb-5">
+          <div class="rounded-md border slack-divider p-3 slack-bg">
+            <div class="text-[13px] slack-muted">Message #aml-alerts</div>
+          </div>
+        </div>
+      </main>
+    </div>
+  </div>
+</section>
+
+<!-- ── FOOTER ──────────────────────────────────────────────────── -->
+<footer class="border-t border-line">
+  <div class="max-w-6xl mx-auto px-6 py-8 flex flex-col md:flex-row items-center justify-between gap-3 text-xs text-slate-500 font-mono">
+    <div>Sentinel · AML detection layer · prototype build</div>
+    <div>Built for crypto exchange risk &amp; compliance teams</div>
+  </div>
+</footer>
+
+</body>
+</html>
