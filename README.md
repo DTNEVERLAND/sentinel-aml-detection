@@ -77,7 +77,7 @@ Three principles, made explicit in the docs:
 
 Built by **Darren Ting** as part of an active transition from finance into crypto compliance.
 
-- 🔗 [linkedin.com/in/darren-ting](https://linkedin.com/in/darren-ting)
+- 🔗 [linkedin.com/in/darren-ting-analyst](https://www.linkedin.com/in/darren-ting-analyst/)
 - 📊 [dune.com/satoshi1015](https://dune.com/satoshi1015) — live on-chain queries
 - 📧 lionghongdarren@gmail.com
 
