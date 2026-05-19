@@ -73,12 +73,4 @@ Three principles, made explicit in the docs:
 
 3. **Honest scoping** — A junior analyst's portfolio piece isn't a production system. This repo distinguishes detection (built) from response (designed) so the depth of thinking is visible without overclaiming the deployment.
 
-## About
 
-Built by **Darren Ting** as part of an active transition from finance into crypto compliance.
-
-- 🔗 [linkedin.com/in/darren-ting-analyst](https://www.linkedin.com/in/darren-ting-analyst/)
-- 📊 [dune.com/satoshi1015](https://dune.com/satoshi1015) — live on-chain queries
-- 📧 lionghongdarren@gmail.com
-
-Open to junior compliance / AML analyst roles at crypto exchanges and on-chain analytics firms across APAC.
