@@ -10,8 +10,9 @@ This repo is the design + write-up for the prototype. The detection logic runs o
 
 ## 🔗 Live & Visual
 
-- **Interactive showcase** — [`/showcase/index.html`](./showcase/index.html) — full Sentinel design with SQL, workflow, and Slack alert UI
-- **Live detection query** — [dune.com/satoshi1015](https://dune.com/satoshi1015)
+- **Interactive showcase** — [dtneverland.github.io/sentinel-aml-detection/showcase](https://dtneverland.github.io/sentinel-aml-detection/showcase/) — full Sentinel design with SQL, workflow, and Slack alert UI ([source](./showcase/index.html))
+- **Runnable detection query** — [`/sql/detect_pass_through_layering.sql`](./sql/detect_pass_through_layering.sql)
+- **Live on Dune** — [dune.com/satoshi1015](https://dune.com/satoshi1015)
 
 ---
 
