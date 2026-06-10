@@ -4,6 +4,10 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Sentinel · Proactive AML for Crypto Exchanges</title>
+<meta name="description" content="Sentinel pairs altcoin deposits with fiat withdrawals in real time, flags pass-through layering in under two hours, and auto-applies a reversible 72-hour fiat hold before the funds settle." />
+<meta property="og:title" content="Sentinel · Proactive AML for Crypto Exchanges" />
+<meta property="og:description" content="Catch the dump before the fiat leaves the building. SQL tripwire → 72h reversible hold → Slack + Jira, with full evidence attached." />
+<meta property="og:type" content="website" />
 <script src="https://cdn.tailwindcss.com"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -122,7 +126,7 @@
     <div class="flex items-center gap-2">
       <div class="w-7 h-7 rounded-md bg-gradient-to-br from-emerald-400 to-blue-500 grid place-items-center text-ink font-bold text-sm">S</div>
       <span class="font-semibold tracking-tight">Sentinel</span>
-      <span class="ml-2 text-xs text-slate-500 font-mono">v0.4 · internal</span>
+      <span class="ml-2 text-xs text-slate-500 font-mono">v0.5 · internal</span>
     </div>
     <div class="hidden md:flex items-center gap-7 text-sm text-slate-400">
       <a href="#engine" class="hover:text-white transition">SQL Engine</a>
@@ -183,7 +187,7 @@
         <span class="w-3 h-3 rounded-full bg-rose-500/80"></span>
         <span class="w-3 h-3 rounded-full bg-amber-400/80"></span>
         <span class="w-3 h-3 rounded-full bg-emerald-400/80"></span>
-        <span class="ml-3 text-xs font-mono text-slate-400">aml/detect_pass_through_layering.sql</span>
+        <span class="ml-3 text-xs font-mono text-slate-400">sql/detect_pass_through_layering.sql</span>
       </div>
       <div class="flex items-center gap-3 text-[11px] font-mono text-slate-500">
         <span class="px-2 py-0.5 rounded border border-line">PostgreSQL 15</span>
@@ -195,14 +199,14 @@
     <div class="overflow-x-auto scrollbar">
       <pre class="font-mono text-[13px] leading-[1.7] p-6 sql min-w-[720px]"><span class="cmt">-- ─────────────────────────────────────────────────────────────────────────────
 -- Pass-Through Layering Detection
--- Pairs ADA / XRP deposits with fiat withdrawals from the SAME account.
--- Flag fires when funds hit fiat &lt; 2h after deposit AND &gt; 95% of deposit value.
+-- Pairs each fiat withdrawal with ALL same-account ADA / XRP deposits made
+-- in the prior 2 hours. Flag fires when the exit drains 95–105% of that value.
 -- Owner: Risk &amp; Compliance Engineering
 -- Cadence: every 5 minutes (Airflow DAG: aml_tripwires)
 -- ─────────────────────────────────────────────────────────────────────────────</span>
 
 <span class="kw">WITH</span> <span class="col">alt_deposits</span> <span class="kw">AS</span> (
-  <span class="cmt">-- Step 1. Confirmed inbound transfers of volatile alts in the last 24h.</span>
+  <span class="cmt">-- Step 1. Confirmed inbound alt transfers. 26h = 24h scan + 2h join lookback.</span>
   <span class="kw">SELECT</span>
     <span class="col">user_id</span>,
     <span class="col">txn_id</span>      <span class="kw">AS</span> <span class="col">deposit_txn</span>,
@@ -212,7 +216,7 @@
   <span class="kw">FROM</span> <span class="col">ledger.deposits</span>
   <span class="kw">WHERE</span> <span class="col">asset</span> <span class="kw">IN</span> (<span class="str">'ADA'</span>, <span class="str">'XRP'</span>)
     <span class="kw">AND</span> <span class="col">status</span> <span class="op">=</span> <span class="str">'confirmed'</span>
-    <span class="kw">AND</span> <span class="col">created_at</span> <span class="op">&gt;=</span> <span class="fn">NOW</span>() <span class="op">-</span> <span class="typ">INTERVAL</span> <span class="str">'24 hours'</span>
+    <span class="kw">AND</span> <span class="col">created_at</span> <span class="op">&gt;=</span> <span class="fn">NOW</span>() <span class="op">-</span> <span class="typ">INTERVAL</span> <span class="str">'26 hours'</span>
 ),
 
 <span class="col">fiat_withdrawals</span> <span class="kw">AS</span> (
@@ -230,36 +234,43 @@
 ),
 
 <span class="col">paired_flows</span> <span class="kw">AS</span> (
-  <span class="cmt">-- Step 3. Self-join: pair each deposit with any later fiat exit by the same user.</span>
+  <span class="cmt">-- Step 3. Pair each fiat exit with EVERY same-user deposit in the prior 2h,</span>
+  <span class="cmt">-- then aggregate the deposit side: split-deposit structuring collapses into</span>
+  <span class="cmt">-- one row, and the time window lives in the join itself.</span>
   <span class="kw">SELECT</span>
-    <span class="col">d.user_id</span>,
-    <span class="col">d.deposit_asset</span>,
+    <span class="col">f.user_id</span>,
+    <span class="col">f.withdrawal_txn</span>,
     <span class="col">f.fiat_asset</span>,
-    <span class="col">d.deposit_value</span>,
     <span class="col">f.withdrawal_value</span>,
-    <span class="fn">EXTRACT</span>(<span class="kw">EPOCH</span> <span class="kw">FROM</span> (<span class="col">f.withdrawal_ts</span> <span class="op">-</span> <span class="col">d.deposit_ts</span>)) <span class="op">/</span> <span class="num">60.0</span>
-                                                            <span class="kw">AS</span> <span class="col">minutes_elapsed</span>,
-    <span class="fn">ROUND</span>(<span class="col">f.withdrawal_value</span> <span class="op">/</span> <span class="fn">NULLIF</span>(<span class="col">d.deposit_value</span>, <span class="num">0</span>), <span class="num">4</span>)
-                                                            <span class="kw">AS</span> <span class="col">withdrawal_ratio</span>
-  <span class="kw">FROM</span> <span class="col">alt_deposits</span> d
-  <span class="kw">JOIN</span> <span class="col">fiat_withdrawals</span> f
+    <span class="fn">ARRAY_AGG</span>(<span class="kw">DISTINCT</span> <span class="col">d.deposit_asset</span>)  <span class="kw">AS</span> <span class="col">deposit_assets</span>,
+    <span class="fn">SUM</span>(<span class="col">d.deposit_value</span>)                 <span class="kw">AS</span> <span class="col">deposit_value</span>,
+    <span class="fn">EXTRACT</span>(<span class="kw">EPOCH</span> <span class="kw">FROM</span> (<span class="col">f.withdrawal_ts</span> <span class="op">-</span> <span class="fn">MIN</span>(<span class="col">d.deposit_ts</span>))) <span class="op">/</span> <span class="num">60.0</span>
+                                          <span class="kw">AS</span> <span class="col">minutes_elapsed</span>,
+    <span class="fn">ROUND</span>(<span class="col">f.withdrawal_value</span> <span class="op">/</span> <span class="fn">NULLIF</span>(<span class="fn">SUM</span>(<span class="col">d.deposit_value</span>), <span class="num">0</span>), <span class="num">4</span>)
+                                          <span class="kw">AS</span> <span class="col">withdrawal_ratio</span>
+  <span class="kw">FROM</span> <span class="col">fiat_withdrawals</span> f
+  <span class="kw">JOIN</span> <span class="col">alt_deposits</span> d
     <span class="kw">ON</span>  <span class="col">d.user_id</span> <span class="op">=</span> <span class="col">f.user_id</span>
-    <span class="kw">AND</span> <span class="col">f.withdrawal_ts</span> <span class="op">&gt;</span> <span class="col">d.deposit_ts</span>
+    <span class="kw">AND</span> <span class="col">d.deposit_ts</span> <span class="op">&lt;</span> <span class="col">f.withdrawal_ts</span>
+    <span class="kw">AND</span> <span class="col">d.deposit_ts</span> <span class="op">&gt;=</span> <span class="col">f.withdrawal_ts</span> <span class="op">-</span> <span class="typ">INTERVAL</span> <span class="str">'2 hours'</span>
+  <span class="kw">GROUP BY</span> <span class="col">f.user_id</span>, <span class="col">f.withdrawal_txn</span>, <span class="col">f.fiat_asset</span>, <span class="col">f.withdrawal_value</span>, <span class="col">f.withdrawal_ts</span>
 )
 
-<span class="cmt">-- Step 4. Tripwire: instant conversion AND near-total drain → flag.</span>
+<span class="cmt">-- Step 4. Tripwire: the exit drains 95–105% of everything deposited in the</span>
+<span class="cmt">-- prior 2h. The upper bound matters — without it, a large withdrawal funded</span>
+<span class="cmt">-- by old balance that merely coincides with a small deposit fires too.</span>
 <span class="kw">SELECT</span>
   <span class="col">user_id</span>,
-  <span class="col">deposit_asset</span>,
+  <span class="col">deposit_assets</span>,
   <span class="col">fiat_asset</span>,
+  <span class="col">withdrawal_txn</span>,
   <span class="col">deposit_value</span>,
   <span class="col">withdrawal_value</span>,
   <span class="col">minutes_elapsed</span>,
   <span class="col">withdrawal_ratio</span>,
   <span class="str">'PASS_THROUGH_LAYERING'</span> <span class="kw">AS</span> <span class="col">risk_flag</span>
 <span class="kw">FROM</span> <span class="col">paired_flows</span>
-<span class="kw">WHERE</span> <span class="col">minutes_elapsed</span> <span class="op">&lt;</span> <span class="num">120</span>      <span class="cmt">-- under 2h</span>
-  <span class="kw">AND</span> <span class="col">withdrawal_ratio</span> <span class="op">&gt;</span> <span class="num">0.95</span>   <span class="cmt">-- &gt;95% of deposit value cashed out</span>
+<span class="kw">WHERE</span> <span class="col">withdrawal_ratio</span> <span class="kw">BETWEEN</span> <span class="num">0.95</span> <span class="kw">AND</span> <span class="num">1.05</span>   <span class="cmt">-- near-total drain, bounded</span>
 <span class="kw">ORDER BY</span> <span class="col">minutes_elapsed</span> <span class="kw">ASC</span>;</pre>
     </div>
   </div>
@@ -479,7 +490,7 @@
 {
   <span class="text-emerald-300">"event"</span>: <span class="text-amber-300">"PASS_THROUGH_LAYERING"</span>,
   <span class="text-emerald-300">"user_id"</span>: <span class="text-amber-300">"LN-88421"</span>,
-  <span class="text-emerald-300">"deposit_txn"</span>: <span class="text-amber-300">"dep_8f23c1a9"</span>,
+  <span class="text-emerald-300">"deposit_txns"</span>: [<span class="text-amber-300">"dep_8f23c1a9"</span>],
   <span class="text-emerald-300">"withdrawal_txn"</span>: <span class="text-amber-300">"wd_a40e72b6"</span>,
   <span class="text-emerald-300">"minutes_elapsed"</span>: <span class="text-sky-300">14</span>,
   <span class="text-emerald-300">"withdrawal_ratio"</span>: <span class="text-sky-300">0.987</span>

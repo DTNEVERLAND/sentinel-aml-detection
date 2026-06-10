@@ -2,16 +2,19 @@
 
 Every threshold in Sentinel is a deliberate trade-off between false-positive cost and false-negative cost. This doc explains each choice.
 
-## Why >95% withdrawal ratio?
+## Why a 95–105% ratio band (not a simple >95% floor)?
 
-The withdrawal-to-deposit value ratio is the strongest single signal that a user deposited specifically to cash out — not to trade.
+The withdrawal-to-deposit value ratio is the strongest single signal that a user deposited specifically to cash out — not to trade. But it only means that if it's a **band**, not a floor.
 
-- **Below 80%**: too noisy. A trader who sells most of a position to take profit might leave ~75% in fiat while keeping a small altcoin position. False positives spike here.
+**The lower bound (95%)** separates layerers from traders:
+
+- **Below 80%**: too noisy. A trader who sells most of a position to take profit might leave ~25% in altcoin. False positives spike here.
 - **80–95%**: the ambiguous zone. Some real traders cash out 90% of a position. Flagging here trades precision for recall.
-- **>95%**: near-total drain. At this ratio, the user kept essentially zero altcoin — the deposit was a vehicle, not an asset. False positives drop sharply.
-- **100% (exact)**: too narrow. Real layerers rarely hit exactly 100% because of fee deductions, slippage, and price drift between conversion and withdrawal.
+- **>95%**: near-total drain. The user kept essentially zero altcoin — the deposit was a vehicle, not an asset.
 
-The 95% threshold sits at the inflection point where precision becomes high enough that auto-mitigation is justified.
+**The upper bound (105%) is just as important.** The ratio is *withdrawal ÷ deposits-in-window*. Without a ceiling, the rule also fires on every user who happens to make a small alt deposit within two hours of a large fiat withdrawal funded by their **existing balance** — a $200 ADA deposit followed by a $50,000 fiat withdrawal is a ratio of 250, which sails past a bare `> 0.95` check. Nothing about that pattern suggests the withdrawal was funded by the deposit; it's a guaranteed false-positive class, and each one is a 72-hour hold on an innocent customer.
+
+Capping at 105% keeps tolerance for fee deductions, slippage, and price drift between conversion and withdrawal (which is why exactly-100% is too narrow), while expressing what the signal actually means: **the deposit and the exit are the same money**.
 
 ## Why 2 hours (120 minutes)?
 
@@ -53,6 +56,22 @@ Different surfaces, different jobs.
 - **Jira** is for **audit trail**: every flagged event becomes a ticket with a permanent record, assignable owner, resolution state, and timestamped action log. This is what auditors and regulators eventually ask for.
 
 Slack without Jira loses auditability. Jira without Slack loses real-time attention. Both, with the same evidence payload, gives compliance ops a record-keeping layer and an attention layer that don't have to be reconciled manually.
+
+## Known evasions (and why v1 ships anyway)
+
+A rule whose evasions you can't articulate is a rule you don't understand. Sentinel v1 is knowingly evadable by:
+
+| Evasion | Why v1 misses it | v2 counter |
+|---|---|---|
+| **Split withdrawals** — one deposit, three fiat exits of ~33% each | Ratio is computed per withdrawal; each leg sits below the band | Aggregate the withdrawal side over a trailing window — the mirror image of the deposit-side aggregation v1 already does |
+| **Smurfing across accounts** — mule accounts each running the pattern at small scale | The rule is single-user by construction | Device-fingerprint / KYC-document / withdrawal-bank-account linkage to cluster related accounts |
+| **Slow layering** — park the fiat and withdraw after the 2-hour window | Outside the time window by design | Velocity rules and balance-origin tracing upstream; widening the window here would destroy precision |
+| **Asset rotation** — use volatile alts outside the static ADA/XRP list | Asset list is hardcoded | Liquidity-weighted dynamic asset list, refreshed from market data |
+| **Pre-positioned conversion** — deposit, convert, let fiat sit, withdraw later | The conversion (trade) leg isn't verified at all | Join the trades table to tie deposit → sell → withdrawal explicitly |
+
+Note what v1 *does* already counter: **split deposits**. Because the detection aggregates all same-user deposits in the 2-hour window before each withdrawal, breaking one deposit into five small ones neither evades the rule nor fires five duplicate alerts.
+
+Shipping a narrow rule with documented evasions beats shipping a broad rule with undocumented false positives. Every evasion above raises the launderer's cost (more accounts, more time exposed on-platform, more KYC surface), and each one maps to a concrete v2 work item rather than a vague "improve detection" backlog entry.
 
 ## What this design deliberately doesn't do
 

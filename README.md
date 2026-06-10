@@ -23,7 +23,7 @@ Traditional AML monitoring at crypto exchanges is **threshold-based**: large tra
 
 | Component | Status | Notes |
 |---|---|---|
-| **SQL CTE detection logic** | ✅ Built | Runs on Dune Analytics against on-chain data |
+| **SQL CTE detection logic** | ✅ Built | Runnable query in [`/sql`](./sql/detect_pass_through_layering.sql); pairing logic validated on Dune Analytics against on-chain transfer data (an on-chain proxy — fiat rails only exist inside an exchange) |
 | **Detection cadence** | ✅ Built | Dune's scheduled refresh |
 | **Risk API (72hr fiat-withdrawal hold)** | 📐 Designed | Architecture + API contract; not integrated to a live exchange |
 | **Slack `#aml-alerts` webhook** | 🎨 Mocked | Full visual mockup with evidence payload, action buttons (see showcase) |
@@ -37,7 +37,7 @@ This is honest scoping: the **detection** is real and runnable. The **response p
 ```mermaid
 flowchart LR
     A[Exchange ledger<br/>deposits + withdrawals] --> B[SQL CTE Tripwire<br/>Dune-scheduled refresh]
-    B --> C{>95% pass-through<br/>within 2 hours?}
+    B --> C{"drains 95–105%<br/>within 2 hours?"}
     C -->|No| D[No action]
     C -->|Yes| E[Risk API<br/>72hr fiat hold]
     E --> F[Slack #aml-alerts<br/>full evidence payload]
@@ -57,8 +57,10 @@ sentinel-aml-detection/
 ├── README.md                       you are here
 ├── docs/
 │   ├── problem-statement.md       why pass-through layering matters
-│   ├── design-decisions.md        why >95%, why 2 hours, why 72hr hold
+│   ├── design-decisions.md        why 95–105%, why 2 hours, why 72hr hold — and the known evasions
 │   └── architecture.md            full 4-step pipeline breakdown
+├── sql/
+│   └── detect_pass_through_layering.sql   the runnable detection query
 └── showcase/
     └── index.html                 interactive design page (SQL + workflow + Slack mockup)
 ```

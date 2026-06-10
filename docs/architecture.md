@@ -8,7 +8,7 @@ The full Sentinel pipeline, with the built/designed boundary made explicit.
 flowchart LR
     A[Exchange ledger<br/>deposits + withdrawals tables] --> B[Polling layer<br/>scheduled refresh]
     B --> C[SQL CTE detection<br/>4-stage query]
-    C --> D{Pattern match?<br/>ratio > 0.95<br/>delta < 120 min}
+    C --> D{Pattern match?<br/>drains 95–105%<br/>within 120 min}
     D -->|No| E[No action]
     D -->|Yes| F[Risk API<br/>POST /risk/v2/cooldown]
     F --> G[72-hour fiat<br/>withdrawal hold]
@@ -26,7 +26,7 @@ flowchart LR
 
 | What | Status |
 |---|---|
-| Built | Dune Analytics scheduled refresh against on-chain data |
+| Built | Dune Analytics scheduled refresh against on-chain transfer data — an **on-chain proxy** for the pairing logic, since real exchange ledgers and fiat rails only exist inside an exchange |
 | Designed (exchange version) | Airflow DAG `aml_tripwires` polling `ledger.deposits` and `ledger.withdrawals` every 5 minutes |
 
 The 5-minute cadence is short enough to fire before most fiat batches clear, long enough to avoid hammering production ledger tables.
@@ -39,10 +39,12 @@ The detection query is structured as four sequential CTEs — each isolatable, d
 |---|---|
 | `alt_deposits` | Pull confirmed altcoin deposits (ADA, XRP) from the last 24h |
 | `fiat_withdrawals` | Pull pending/processing fiat withdrawals (MYR, IDR, ZAR, EUR, GBP) from the same window |
-| `paired_flows` | Self-join by `user_id` where the withdrawal happened *after* a deposit — compute `minutes_elapsed` and `withdrawal_ratio` |
-| **Final SELECT** | Apply the tripwire: `minutes_elapsed < 120 AND withdrawal_ratio > 0.95` |
+| `paired_flows` | Join each fiat withdrawal to **all** same-user alt deposits in the prior 2 hours, then aggregate the deposit side — compute `minutes_elapsed` and `withdrawal_ratio` against the summed deposits |
+| **Final SELECT** | Apply the tripwire: `withdrawal_ratio BETWEEN 0.95 AND 1.05` (the 2-hour window is enforced inside the join itself) |
 
-See [`/showcase/index.html`](../showcase/index.html) for the full annotated SQL.
+Aggregating the deposit side does two jobs at once: split-deposit structuring (three small deposits feeding one exit) collapses into a single alert row instead of evading the rule or firing three duplicates, and the ratio is computed against what was *actually* deposited in the window rather than one arbitrary leg of it.
+
+Full runnable query: [`/sql/detect_pass_through_layering.sql`](../sql/detect_pass_through_layering.sql). Annotated visual version: [`/showcase/index.html`](../showcase/index.html).
 
 **Why this structure**: CTEs are auditable. A compliance officer or auditor can read the query top-down and verify the logic at each stage. Single-statement monolithic queries are faster to write but harder to defend in an audit conversation.
 
@@ -80,6 +82,8 @@ Pushes a structured message to `#aml-alerts` channel with:
 - One-click action buttons: View account · Open Jira ticket · Escalate to L2 · Mark false positive
 
 See the [showcase page](../showcase/index.html) for the full visual.
+
+**Data-egress note**: the alert pushes customer identifiers and transaction details into a third-party SaaS. The design assumes Slack Enterprise Grid with DLP and an internal pseudonymous `user_ref` (not legal name, not account email). If that assumption doesn't hold at a given exchange, the alert degrades gracefully to *severity + reason code + deep link* into the internal case tool, with all evidence kept behind the firewall.
 
 ### 5. Jira ticket auto-creation (designed)
 

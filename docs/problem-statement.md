@@ -28,7 +28,7 @@ Three signals, AND-ed together:
 
 1. **Volatile altcoin deposit** — ADA, XRP, or similar low-friction high-volume tokens. Stablecoin deposits are excluded because they have different (and well-monitored) typologies.
 2. **Fast fiat conversion** — Withdrawal request placed within 120 minutes of the deposit clearing.
-3. **Near-total drain** — Withdrawal value exceeds 95% of the deposit value, meaning the user converted essentially all of it (a real trader rarely cashes out 100% of a position within 2 hours).
+3. **Near-total drain** — Withdrawal value lands at 95–105% of everything deposited in the prior two hours. A band, not a floor: below it, the user kept a real position (probably a trader); far above it, the withdrawal is just pre-existing balance leaving that happens to coincide with a small deposit.
 
 Any one of these alone is benign. Together, they describe a user who deposited specifically to convert and exit — not to trade. That's the layering fingerprint.
 
