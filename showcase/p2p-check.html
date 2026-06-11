@@ -1,0 +1,257 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>ChainGuard · Check a P2P buyer before you trade</title>
+<meta name="description" content="Free, no-install safety check for P2P crypto sellers. Paste a buyer's public listing numbers and see if trading with them risks your bank account being frozen. Runs entirely in your browser — nothing is sent anywhere." />
+<meta property="og:title" content="ChainGuard · Check a P2P buyer before you trade" />
+<meta property="og:description" content="Paste the buyer's public stats, get a plain SAFE / CAUTION / DO-NOT-TRADE verdict. Runs in your browser, sends nothing." />
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script>
+  tailwind.config = {
+    theme: { extend: {
+      fontFamily: { sans: ['Inter','ui-sans-serif','system-ui'], mono: ['"JetBrains Mono"','ui-monospace'] },
+      colors: { ink:'#06070a', panel:'#0c0d12', line:'rgba(255,255,255,0.08)' },
+    }}
+  }
+</script>
+<style>
+  html,body{ background:#06070a; color:#e6e8ec; }
+  body{ background-image:
+      radial-gradient(900px 500px at 80% -10%, rgba(16,185,129,0.10), transparent 60%),
+      radial-gradient(700px 400px at -10% 30%, rgba(59,130,246,0.08), transparent 60%);
+      background-attachment:fixed; }
+  .card{ background:linear-gradient(180deg, rgba(255,255,255,0.025), rgba(255,255,255,0.01));
+         border:1px solid rgba(255,255,255,0.08); border-radius:16px; }
+  .fld{ background:#0c0d12; border:1px solid rgba(255,255,255,0.12); border-radius:10px;
+        color:#e6e8ec; font-family:'JetBrains Mono',monospace; }
+  .fld:focus{ outline:none; border-color:rgba(16,185,129,0.6); }
+  input[type=number]::-webkit-inner-spin-button{ opacity:.4; }
+  .seg{ border:1px solid rgba(255,255,255,0.12); border-radius:10px; overflow:hidden; }
+  .seg button{ padding:.4rem .9rem; font-size:.8rem; }
+  .seg button[aria-pressed=true]{ background:rgba(16,185,129,0.16); color:#fff; }
+  .pill{ font-size:11px; letter-spacing:.04em; padding:2px 8px; border-radius:999px; }
+</style>
+</head>
+<body class="font-sans antialiased">
+
+<div class="max-w-3xl mx-auto px-5 py-10">
+
+  <!-- header -->
+  <div class="flex items-center gap-2 mb-2">
+    <div class="w-7 h-7 rounded-md bg-gradient-to-br from-emerald-400 to-blue-500 grid place-items-center text-ink font-bold text-sm">C</div>
+    <span class="font-semibold tracking-tight">ChainGuard</span>
+    <span class="ml-1 text-xs text-slate-500 font-mono">P2P buyer check</span>
+    <a href="./index.html" class="ml-auto text-xs text-slate-400 hover:text-white transition">← Sentinel</a>
+  </div>
+  <h1 class="text-3xl md:text-4xl font-extrabold tracking-tight leading-tight">
+    Check the buyer <span class="bg-gradient-to-r from-emerald-300 to-sky-300 bg-clip-text text-transparent">before the bank checks you.</span>
+  </h1>
+  <p class="mt-3 text-slate-400 text-sm leading-relaxed max-w-2xl">
+    If you sell crypto on P2P to a mule account, the dirty money landing in your bank can get
+    <b class="text-slate-200">your own account frozen</b> when it's reported. Paste the buyer's
+    public listing numbers below — this tells you if they fit the mule pattern.
+    <span class="text-slate-500">Everything runs in your browser. Nothing is sent anywhere.</span>
+  </p>
+
+  <!-- form -->
+  <div class="card p-5 mt-7">
+    <div class="flex items-center justify-between mb-4">
+      <div class="text-xs font-mono text-emerald-300/80 tracking-widest">ENTER THE BUYER'S NUMBERS</div>
+      <div class="seg flex text-slate-400" role="group" aria-label="profile">
+        <button id="modeRetail" aria-pressed="true" onclick="setMode('retail')">Retail-safe</button>
+        <button id="modeExch" aria-pressed="false" onclick="setMode('exchange')">Exchange</button>
+      </div>
+    </div>
+
+    <div class="grid sm:grid-cols-2 gap-4">
+      <label class="block">
+        <span class="text-xs text-slate-400">Their advertised price</span>
+        <input id="adPrice" type="number" step="any" value="4.305" class="fld w-full mt-1 px-3 py-2 text-sm" oninput="score()">
+      </label>
+      <label class="block">
+        <span class="text-xs text-slate-400">Current market price (mid)</span>
+        <input id="mid" type="number" step="any" value="4.20" class="fld w-full mt-1 px-3 py-2 text-sm" oninput="score()">
+      </label>
+      <label class="block">
+        <span class="text-xs text-slate-400">Account age <span class="text-slate-600">(days)</span></span>
+        <input id="age" type="number" step="1" value="9" class="fld w-full mt-1 px-3 py-2 text-sm" oninput="score()">
+      </label>
+      <label class="block">
+        <span class="text-xs text-slate-400">Orders in last 30 days</span>
+        <input id="orders" type="number" step="1" value="280" class="fld w-full mt-1 px-3 py-2 text-sm" oninput="score()">
+      </label>
+      <label class="block sm:col-span-2">
+        <span class="text-xs text-slate-400">Completion rate <span class="text-slate-600">(%)</span></span>
+        <input id="finish" type="number" step="any" value="99" class="fld w-full mt-1 px-3 py-2 text-sm" oninput="score()">
+      </label>
+    </div>
+    <p id="err" class="text-rose-400 text-xs mt-3 hidden"></p>
+  </div>
+
+  <!-- verdict -->
+  <div id="verdict" class="card p-6 mt-5"></div>
+
+  <!-- manual -->
+  <div class="card p-6 mt-5">
+    <div class="text-xs font-mono text-sky-300/80 tracking-widest mb-3">HOW TO USE THIS</div>
+    <ol class="space-y-3 text-sm text-slate-300 list-decimal pl-5">
+      <li>On Binance / OKX / any P2P app, open the buyer's ad and tap their name to see their profile.</li>
+      <li>Copy these five numbers into the boxes above:
+        <ul class="mt-1.5 space-y-1 text-slate-400 list-disc pl-5">
+          <li><b class="text-slate-200">Advertised price</b> &amp; <b class="text-slate-200">market mid</b> — their price vs. the going rate.</li>
+          <li><b class="text-slate-200">Account age</b> — how long they've been registered (days).</li>
+          <li><b class="text-slate-200">Orders in 30 days</b> — their 30-day order count.</li>
+          <li><b class="text-slate-200">Completion rate</b> — their completion %.</li>
+        </ul>
+      </li>
+      <li>Read the verdict. <span class="text-emerald-300">SAFE</span> = no mule fingerprint.
+        <span class="text-amber-300">CAUTION</span> = skip them, pick another — it's not worth a frozen account for a few cents.
+        <span class="text-rose-300">DO NOT TRADE</span> = strong match, walk away.</li>
+    </ol>
+    <div class="mt-4 rounded-lg border border-amber-400/25 bg-amber-400/[0.07] p-3 text-[13px] text-amber-100/90">
+      <b>Even on SAFE, always keep the trade inside the platform's escrow and never release coins outside the app.</b>
+      A patient mule on an old account priced at market can still look clean on public data — escrow is what protects you when the numbers can't.
+    </div>
+    <p class="text-[11px] text-slate-500 mt-3 font-mono">
+      Thresholds are calibrated from real Binance P2P market data and red-tested. This is a risk signal, not legal or financial advice.
+    </p>
+  </div>
+
+  <footer class="text-center text-xs text-slate-600 font-mono mt-8">
+    ChainGuard · part of the <a href="https://github.com/DTNEVERLAND/sentinel-aml-detection" class="hover:text-slate-400 underline">Sentinel AML toolkit</a> · runs 100% in your browser
+  </footer>
+</div>
+
+<script>
+// ── Scoring model — a 1:1 port of core/p2p_scorer.py ────────────────────────
+// Verified against the Python implementation (see redteam/). Keep in sync.
+const W_PREMIUM = 0.82, W_VELOCITY = 0.72, W_COMPLETION = 0.35;
+const AGED_VELOCITY_DISCOUNT = 0.15, VELOCITY_RAMP_FLOOR_FRAC = 0.5;
+const PREMIUM_RAMP_MULTIPLE = 2.0, ORDER_WINDOW_DAYS = 30;
+const MIN_COMPLETION = 95.0, COMPLETION_FLOOR = 80.0, NEW_ACCOUNT_DAYS = 30;
+
+const PROFILES = {
+  retail:   { premium:0.008, velocity:30.0, suspicious:0.25, high:0.55,
+              label:"Retail-safe (recommended)" },
+  exchange: { premium:0.010, velocity:50.0, suspicious:0.40, high:0.70,
+              label:"Exchange (balanced)" },
+};
+let MODE = 'retail';
+const clamp01 = x => Math.max(0, Math.min(1, x));
+
+function evaluate(ad, mid, age, orders, finish, cfg){
+  // validation (mirrors the Python fail-fast checks)
+  if (!(ad > 0)) throw "Advertised price must be greater than 0.";
+  if (!(mid > 0)) throw "Market mid price must be greater than 0.";
+  if (!Number.isInteger(age) || age <= 0) throw "Account age must be a whole number of days greater than 0.";
+  if (!Number.isInteger(orders) || orders < 0) throw "Orders in 30 days must be 0 or more (whole number).";
+  if (!(finish >= 0 && finish <= 100)) throw "Completion rate must be between 0 and 100.";
+
+  const reasons = [];
+  // 1. premium
+  const premiumDelta = (ad - mid) / mid;
+  const ramp = PREMIUM_RAMP_MULTIPLE * cfg.premium;
+  const premium = clamp01((premiumDelta - cfg.premium) / ramp);
+  if (premium > 0) reasons.push(
+    `Priced ${(premiumDelta*100).toFixed(2)}% above market (allowed ${(cfg.premium*100).toFixed(2)}%) — paying a premium to flush fiat fast is the classic mule move.`);
+
+  // 2. velocity (account-age aware, soft shoulder)
+  const effDays = Math.min(age, ORDER_WINDOW_DAYS);
+  const daily = orders / Math.max(effDays, 1);
+  const floor = VELOCITY_RAMP_FLOOR_FRAC * cfg.velocity;
+  const rawVel = clamp01((daily - floor) / cfg.velocity);
+  const isNew = age < NEW_ACCOUNT_DAYS;
+  const velocity = isNew ? rawVel : AGED_VELOCITY_DISCOUNT * rawVel;
+  if (velocity > 0) reasons.push(
+    `${daily.toFixed(1)} orders/day (threshold ${cfg.velocity}) on ${isNew ? `a ${age}-day-old account` : `an aged account (discounted)`} — industrial throughput.`);
+
+  // 3. completion
+  const span = MIN_COMPLETION - COMPLETION_FLOOR;
+  const completion = clamp01((MIN_COMPLETION - finish) / span);
+  if (completion > 0) reasons.push(
+    `Completion ${finish.toFixed(1)}% below the ${MIN_COMPLETION}% floor — weak signal alone, but it compounds.`);
+
+  // noisy-OR
+  let risk = 1 - (1 - W_PREMIUM*premium) * (1 - W_VELOCITY*velocity) * (1 - W_COMPLETION*completion);
+  risk = clamp01(risk);
+
+  let category = "CLEAN";
+  if (risk >= cfg.high) category = "HIGH_RISK";
+  else if (risk >= cfg.suspicious) category = "SUSPICIOUS";
+
+  return { risk, category, premiumDelta, daily, isNew, finish, reasons };
+}
+
+const VERDICT = {
+  CLEAN:      { tag:"✅ LIKELY SAFE", cls:"text-emerald-300", bar:"from-emerald-400 to-emerald-500",
+                advice:"No mule fingerprint on the public stats. Still use the platform's escrow and never release coins outside the app." },
+  SUSPICIOUS: { tag:"⚠️ CAUTION — CONSIDER SKIPPING", cls:"text-amber-300", bar:"from-amber-300 to-amber-500",
+                advice:"This buyer shows one or more mule traits. For a few cents of price difference it is not worth a frozen account — prefer another counterparty." },
+  HIGH_RISK:  { tag:"⛔ DO NOT TRADE", cls:"text-rose-300", bar:"from-rose-400 to-rose-600",
+                advice:"Strong match for a dirty-fiat flush pattern. Trading here risks your bank account being frozen when the chain is reported. Walk away." },
+};
+
+function num(id){ return parseFloat(document.getElementById(id).value); }
+
+function score(){
+  const errEl = document.getElementById('err');
+  const out = document.getElementById('verdict');
+  const cfg = PROFILES[MODE];
+  let r;
+  try {
+    r = evaluate(num('adPrice'), num('mid'),
+                 parseInt(document.getElementById('age').value,10),
+                 parseInt(document.getElementById('orders').value,10),
+                 num('finish'), cfg);
+    errEl.classList.add('hidden');
+  } catch(e){
+    errEl.textContent = e; errEl.classList.remove('hidden');
+    out.innerHTML = '<div class="text-slate-500 text-sm">Fill in valid numbers to see the verdict.</div>';
+    return;
+  }
+  const v = VERDICT[r.category];
+  const pct = Math.round(r.risk*100);
+  out.innerHTML = `
+    <div class="flex items-center justify-between flex-wrap gap-2">
+      <div class="text-2xl font-extrabold ${v.cls}">${v.tag}</div>
+      <div class="text-right font-mono">
+        <div class="text-3xl font-bold">${r.risk.toFixed(2)}<span class="text-slate-500 text-base">/1.00</span></div>
+        <div class="text-[11px] text-slate-500">risk score · ${cfg.label}</div>
+      </div>
+    </div>
+    <div class="h-2 rounded-full bg-white/10 mt-3 overflow-hidden">
+      <div class="h-full bg-gradient-to-r ${v.bar}" style="width:${pct}%"></div>
+    </div>
+    <p class="text-slate-300 text-sm mt-4">${v.advice}</p>
+    ${r.reasons.length ? `<div class="mt-4">
+      <div class="text-[11px] font-mono text-slate-500 uppercase tracking-wide mb-1.5">Why</div>
+      <ul class="space-y-1.5 text-[13px] text-slate-300">${r.reasons.map(x=>`<li>• ${x}</li>`).join('')}</ul>
+    </div>` : `<div class="mt-4 text-[13px] text-slate-500">No individual risk signal tripped.</div>`}
+    <div class="grid grid-cols-3 gap-3 mt-5 text-center font-mono">
+      <div class="rounded-lg border border-line py-2">
+        <div class="text-sm ${r.premiumDelta>0?'text-amber-300':'text-slate-300'}">${(r.premiumDelta*100).toFixed(2)}%</div>
+        <div class="text-[10px] text-slate-500 mt-0.5">vs market</div></div>
+      <div class="rounded-lg border border-line py-2">
+        <div class="text-sm text-slate-300">${r.daily.toFixed(0)}/day</div>
+        <div class="text-[10px] text-slate-500 mt-0.5">${r.isNew?'new acct':'aged acct'}</div></div>
+      <div class="rounded-lg border border-line py-2">
+        <div class="text-sm text-slate-300">${r.finish.toFixed(1)}%</div>
+        <div class="text-[10px] text-slate-500 mt-0.5">completion</div></div>
+    </div>`;
+}
+
+function setMode(m){
+  MODE = m;
+  document.getElementById('modeRetail').setAttribute('aria-pressed', m==='retail');
+  document.getElementById('modeExch').setAttribute('aria-pressed', m==='exchange');
+  score();
+}
+score();
+</script>
+</body>
+</html>

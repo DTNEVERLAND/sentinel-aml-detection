@@ -58,6 +58,9 @@ Honest scoping: the **detection** is real and runnable; the **response pipeline*
 
 The user-side half. A retail P2P seller who matches with a mule buyer receives tainted fiat; when a scam victim reports the chain, the bank freezes the seller's account too. This module scores a counterparty's **publicly visible listing** — ad premium, order velocity, account age, completion rate — and gives a plain pre-trade verdict.
 
+**🌐 No-install web tool** — [dtneverland.github.io/sentinel-aml-detection/showcase/p2p-check.html](https://dtneverland.github.io/sentinel-aml-detection/showcase/p2p-check.html). Built for the actual end user: a retail trader with no terminal, no Python, no Claude. Paste the buyer's numbers, get a verdict. The scoring runs entirely in the browser (a verified 1:1 port of `core/p2p_scorer.py`) — nothing is sent anywhere. The page doubles as the user manual.
+
+For developers / scripting:
 ```
 py check_trader.py --premium 2.4 --age 8 --orders30 600 --finish 99
   →  Risk score 0.95 / 1.00   Verdict: ⛔ DO NOT TRADE
