@@ -58,13 +58,16 @@ Honest scoping: the **detection** is real and runnable; the **response pipeline*
 
 The user-side half. A retail P2P seller who matches with a mule buyer receives tainted fiat; when a scam victim reports the chain, the bank freezes the seller's account too. This module scores a counterparty's **publicly visible listing** — ad premium, order velocity, account age, completion rate — and gives a plain pre-trade verdict.
 
-**🌐 No-install web tool** — [dtneverland.github.io/sentinel-aml-detection/showcase/p2p-check.html](https://dtneverland.github.io/sentinel-aml-detection/showcase/p2p-check.html). Built for the actual end user: a retail trader with no terminal, no Python, no Claude. Paste the buyer's numbers, get a verdict. The scoring runs entirely in the browser (a verified 1:1 port of `core/p2p_scorer.py`) — nothing is sent anywhere. The page doubles as the user manual.
+**One engine, four interfaces** — `core/p2p_scorer.py` is the single source of truth; everything below reuses it:
 
-For developers / scripting:
-```
-py check_trader.py --premium 2.4 --age 8 --orders30 600 --finish 99
-  →  Risk score 0.95 / 1.00   Verdict: ⛔ DO NOT TRADE
-```
+| Interface | For whom | Where |
+|---|---|---|
+| 🌐 **Web tool** | a retail trader with no terminal, no Python, no Claude | [live page](https://dtneverland.github.io/sentinel-aml-detection/showcase/p2p-check.html) — runs in-browser, sends nothing; doubles as the user manual |
+| 💬 **Telegram bot** | a trader on their phone, mid-trade, already in scam-warning groups | [`bot/`](./bot/) — send 5 numbers, get a verdict; stdlib-only, stateless |
+| 🖥️ **CLI** | developers / scripting | `py check_trader.py --premium 2.4 --age 8 --orders30 600 --finish 99` |
+| 📦 **Library** | embedding | `evaluate_counterparty_risk(meta, AppConfig.retail_safe())` |
+
+The web tool's JS scoring is a verified 1:1 port of the Python engine; the bot and CLI import it directly. Reaching the actual end user is a *distribution* problem, not a code one — the web tool and bot are the two channels that meet a retail trader where they already are.
 
 Three signals combined noisy-OR, every threshold **calibrated against real Binance P2P data** rather than guessed, then **red-teamed** until it caught the mules that slip through:
 
@@ -76,7 +79,7 @@ RETAIL-SAFE profile  mule recall 100%   false alarms 0%   ← default
 The full design, the two model holes red-teaming exposed and fixed, and the one residual evasion honestly quantified (not hidden) are in **[docs/p2p-scorer.md](./docs/p2p-scorer.md)**.
 
 ```
-py -m pytest tests/                            # 48 tests
+py -m pytest tests/                            # 56 tests (scorer + bot logic)
 PYTHONPATH=. py redteam/adversarial_cases.py   # confusion matrix
 PYTHONPATH=. py redteam/second_pass.py         # monotonicity + type + residual gap
 ```
@@ -101,10 +104,12 @@ sentinel-aml-detection/
 │   └── p2p-scorer.md               ── Module 2 design + red-team writeup ──
 │
 │   ── Module 2: P2P counterparty scorer (Python) ──
-├── check_trader.py                 CLI — run before a trade
-├── config_loader.py                frozen AppConfig (+ retail_safe preset)
 ├── core/
-│   └── p2p_scorer.py               P2PBehavioralScorer + P2PTraderMetadata
+│   └── p2p_scorer.py               the scoring engine — single source of truth
+├── check_trader.py                 CLI interface
+├── bot/
+│   └── telegram_bot.py             Telegram bot interface (stdlib-only)
+├── config_loader.py                frozen AppConfig (+ retail_safe preset)
 ├── redteam/
 │   ├── data/                       real Binance P2P snapshot (calibration ground truth)
 │   ├── adversarial_cases.py        round 1: confusion matrix on 13 profiles
